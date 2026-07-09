@@ -1,52 +1,102 @@
 # 地震预警 Bark 订阅系统
 
-基于 Rust 后端 + Cloudflare Workers 的地震预警实时推送服务。使用 GeoHash 空间索引实现匹配，通过 Bark App 实时推送。
+基于 Rust 长驻后端的地震预警实时推送服务。后端同时监听 Wolfx WebSocket、维护订阅、通过 Bark 推送，并内置前端页面。GeoHash 空间索引实现位置匹配。
 
 示例: [http://eew.noctiro.moe](http://eew.noctiro.moe)
 
 ## 技术栈
 
-* **后端**: Rust, Axum, sled (DB), tokio-tungstenite (WS)
-* **前端**: Cloudflare Workers, 原生 JS/HTML, CartoCDN (地图)
+* **核心**: Rust, Axum, sled (DB), tokio-tungstenite (WS)
+* **前端**: 单文件 `web/index.html`，原生 JS, CartoCDN 地图
+* **部署**: 单二进制内嵌前端；可选 Cloudflare Worker / Vercel / Caddy / Nginx 作为边缘 adapter
+
+## 项目结构
+
+```text
+backend/   Rust 后端，编译产物为单一二进制
+web/        前端源（唯一一份 index.html）
+deploy/     部署适配器
+  cloudflare-worker/   静态 + API 反代
+  vercel/              rewrites 反代
+  caddy/               反向代理示例
+  nginx/               反向代理示例
+  systemd/             守护进程示例
+```
 
 ## 部署
 
-### 1. 后端部署 (Rust)
+### 方式一：单二进制（推荐）
 
-需要 Rust 环境和一台服务器。
+一个二进制同时提供前端页面、API 和地震监听推送，适合 VPS / NAS / Docker / systemd。
 
 ```bash
 cd backend
-
-# 配置环境
 cp .env.example .env
-# 编辑 .env 修改 SERVER_PORT 或 BARK_API_URL 等
-
-# 构建与运行
+set -a; . ./.env; set +a
 cargo build --release
 ./target/release/earthquake-alert-backend
-
 ```
 
-### 2. 前端部署 (Cloudflare Workers)
+浏览器打开 `http://your-server:30010` 即可使用。前端已内嵌于二进制，无需额外静态文件。
 
-需要 Node.js 和 Wrangler CLI。
+### 方式二：Rust 后端 + Cloudflare Worker
+
+Worker 仅负责托管前端页面并把 `/api/*`、`/health` 转发到后端。
 
 ```bash
-cd worker
-
-# 编辑 wrangler.toml 配置后端地址
-# [vars]
-# BACKEND_URL = "http://your-backend-ip:30010"
-
-# 部署
+cd deploy/cloudflare-worker
+# 编辑 wrangler.toml，将 BACKEND_URL 改为后端地址
 wrangler deploy --env production
-
 ```
+
+### 方式三：Rust 后端 + Vercel 静态前端
+
+`deploy/vercel/vercel.json` 把 `/api/*` 和 `/health` rewrite 到后端。把 `web/` 作为 Vercel 静态站点根目录，修改 `vercel.json` 中的 `YOUR_BACKEND_HOST` 后部署即可。
+
+### 方式四：Rust 后端 + Caddy 反代
+
+参见 `deploy/caddy/Caddyfile`，将域名改为自己的域名后，Caddy 会自动申请 HTTPS 证书并把整站反代到本机 `127.0.0.1:30010`。
+
+如果希望由 Caddy 托管 `web/` 静态文件，只把 `/api/*` 和 `/health` 反代到后端，使用 `deploy/caddy/Caddyfile.static`。
+
+### 方式五：Rust 后端 + Nginx 反代
+
+参见 `deploy/nginx/earthquake-alert.conf`，将 `/` 反代到本机 `127.0.0.1:30010`。
+
+### 纯静态前端跨域访问后端
+
+把 `web/index.html` 托管到任意静态平台（GitHub Pages、对象存储等），在页面加载前设置：
+
+```html
+<script>window.EEW_API_BASE = "https://api.example.com"</script>
+```
+
+即可让前端跨域访问独立后端。注意：地震监听和推送必须由后端进程承担，纯静态前端不能单独工作。
+
+### systemd 守护
+
+参见 `deploy/systemd/earthquake-alert.service`，按本机路径修改后：
+
+```bash
+sudo cp deploy/systemd/earthquake-alert.service /etc/systemd/system/
+sudo systemctl enable --now earthquake-alert
+```
+
+### 环境变量
+
+在 `backend/` 下创建 `.env`，运行前导入环境变量，或通过系统环境变量配置。参见下方配置说明。
+
+```bash
+cd backend
+cp .env.example .env
+# 编辑 .env 修改 SERVER_PORT 或 BARK_API_URL 等
+set -a; . ./.env; set +a
+```
+
 
 ## 配置说明
 
-### 后端环境变量 (.env)
+### 后端环境变量
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |

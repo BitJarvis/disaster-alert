@@ -12,7 +12,9 @@ use axum::{
 };
 use config::Config;
 use db::Database;
-use routes::{AppState, health_handler, stats_handler, subscribe_handler, unsubscribe_handler};
+use routes::{
+    AppState, health_handler, index_handler, stats_handler, subscribe_handler, unsubscribe_handler,
+};
 use services::{BarkNotifier, BarkPushConfig, EarthquakeMonitor};
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
@@ -58,6 +60,8 @@ async fn main() -> Result<()> {
 
     // 创建路由
     let app = Router::new()
+        .route("/", get(index_handler))
+        .route("/index.html", get(index_handler))
         .route("/health", get(health_handler))
         .route("/api/subscribe", post(subscribe_handler))
         .route("/api/unsubscribe", delete(unsubscribe_handler))

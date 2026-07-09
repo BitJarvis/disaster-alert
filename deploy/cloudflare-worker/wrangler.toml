@@ -4,7 +4,7 @@ compatibility_date = "2025-12-28"
 
 # 静态资产配置
 [assets]
-directory = "./static"
+directory = "../../web"
 
 # 环境变量
 [vars]

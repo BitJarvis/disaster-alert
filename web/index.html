@@ -377,7 +377,7 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const api = window.location.origin;
+    const api = (window.EEW_API_BASE || window.location.origin).replace(/\/$/, "");
     const storageKey = "eew_subscription_draft_v2";
     const form = document.querySelector("#subscribe-form");
     const barkInput = document.querySelector("#bark-id");

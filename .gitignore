@@ -5,11 +5,11 @@ Cargo.lock
 
 # Node.js
 node_modules
-worker/node_modules
+deploy/cloudflare-worker/node_modules
 
 # Cloudflare Worker
 .wrangler
-worker/.wrangler
+deploy/cloudflare-worker/.wrangler
 
 # 数据库
 backend/data
@@ -31,4 +31,3 @@ backend/.env
 
 # macOS
 .DS_Store
-
