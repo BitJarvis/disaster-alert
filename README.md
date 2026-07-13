@@ -300,3 +300,4 @@ vim .env
 - 数据源：[wolfx.jp](https://ws-api.wolfx.jp)
 - 数据源：[FAN Studio](https://api.fanstudio.tech/doc/ws-api/#home)
 - 推送服务：[Bark](https://github.com/Finb/Bark)
+- 国界数据：[OpenStreetMap contributors](https://www.openstreetmap.org/copyright)，通过 `country-boundaries` 离线数据集提供
