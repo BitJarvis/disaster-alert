@@ -40,6 +40,8 @@ pub struct AlertTiming {
 pub struct AlertRecipient {
     pub destination: DestinationId,
     pub location_name: String,
+    pub distance_km: Option<f64>,
+    pub affected_region_name: Option<String>,
 }
 
 struct BarkMessage<'a> {
@@ -184,7 +186,16 @@ impl BarkNotifier {
         if let Some(radius_km) = event.radius_km {
             lines.push(format!("七级风圈: {radius_km:.0}km"));
         }
-        if !event.affected_regions.is_empty() {
+        if let Some(region) = recipient
+            .affected_region_name
+            .as_deref()
+            .filter(|region| !region.trim().is_empty())
+        {
+            lines.push(format!(
+                "影响区域: {}",
+                truncate_chars(region.trim(), MAX_REGION_CHARS)
+            ));
+        } else if !event.affected_regions.is_empty() {
             let regions = event
                 .affected_regions
                 .iter()
@@ -192,6 +203,16 @@ impl BarkNotifier {
                 .map(|region| truncate_chars(region, MAX_REGION_CHARS))
                 .collect::<Vec<_>>();
             lines.push(format!("影响区域: {}", regions.join("、")));
+        }
+        if event.category == DisasterCategory::WeatherWarning
+            && let Some(distance_km) = recipient.distance_km
+        {
+            let target = recipient.location_name.trim();
+            lines.push(if target.is_empty() {
+                format!("距离: 距监测点{distance_km:.0}km")
+            } else {
+                format!("距离: 距{target}{distance_km:.0}km")
+            });
         }
         if event.category != DisasterCategory::EarthquakeReport
             && !event.description.trim().is_empty()
@@ -346,6 +367,8 @@ impl BarkNotifier {
         let recipient = AlertRecipient {
             destination: subscription.destination_id(),
             location_name: target.label.clone(),
+            distance_km: None,
+            affected_region_name: None,
         };
         self.send_disaster_alert(&recipient, level, &event, timing.as_ref())
             .await
