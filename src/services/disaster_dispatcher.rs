@@ -680,6 +680,8 @@ fn match_subscription(
                 .get(&stored.destination_id())
                 .cloned()
                 .unwrap_or_default(),
+            distance_km: None,
+            affected_region_name: None,
         };
         return Some(DispatchTarget {
             subscription,
@@ -770,12 +772,44 @@ fn match_subscription(
     let recipient = AlertRecipient {
         destination: destination_id,
         location_name: location.label.clone(),
+        distance_km: (event.category == DisasterCategory::WeatherWarning)
+            .then(|| distance_to_location(event, location))
+            .flatten(),
+        affected_region_name: (event.category == DisasterCategory::WeatherWarning)
+            .then(|| administrative.map(full_region_name))
+            .flatten(),
     };
     Some(DispatchTarget {
         subscription,
         recipient,
         level,
         timing,
+    })
+}
+
+fn distance_to_location(event: &DisasterEvent, target: &MonitoringTarget) -> Option<f64> {
+    let (latitude, longitude) = event.latitude.zip(event.longitude)?;
+    distance::vincenty_distance(
+        latitude,
+        longitude,
+        target.point.latitude,
+        target.point.longitude,
+    )
+}
+
+fn full_region_name(target: &MonitoringTarget) -> String {
+    [
+        target.region.province.trim(),
+        target.region.city.trim(),
+        target.region.district.trim(),
+    ]
+    .into_iter()
+    .filter(|part| !part.is_empty())
+    .fold(String::new(), |mut name, part| {
+        if !name.ends_with(part) {
+            name.push_str(part);
+        }
+        name
     })
 }
 
@@ -1048,6 +1082,20 @@ mod tests {
         event.longitude = None;
         event.affected_regions = vec!["四川省".to_string()];
         assert!(match_subscription(subscription(), &event, &HashMap::new(), policy()).is_some());
+    }
+
+    #[test]
+    fn weather_match_includes_full_region_and_real_distance() {
+        let mut event = event(DisasterCategory::WeatherWarning, 1);
+        event.affected_regions = vec!["成都市".to_string()];
+        let target = match_subscription(subscription(), &event, &HashMap::new(), policy());
+        assert!(target.is_some_and(|target| {
+            target.recipient.affected_region_name.as_deref() == Some("四川省成都市")
+                && target
+                    .recipient
+                    .distance_km
+                    .is_some_and(|distance| distance > 50.0)
+        }));
     }
 
     #[tokio::test]
